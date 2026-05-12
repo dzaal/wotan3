@@ -1,0 +1,33 @@
+# Wotan3 — .gitignore
+
+# *** NEVER commit real credentials ***
+share/settings/config.php
+
+# Session files & logs
+share/tmp/
+share/log/
+*.log
+
+# Image cache
+share/imagecache/
+*/imagecache/
+
+# Backup files left by editors / deployments
+*.bak
+*.bak*
+*.org
+*.orig
+*.swp
+*.swo
+*~
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.komodoproject
+nbproject/
+
+# PHP upload temp
+share/uploads/tmp/
