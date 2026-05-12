@@ -41,10 +41,7 @@ CREATE TABLE IF NOT EXISTS `users` (
 -- Seed: guest user (required by chkusr3 access control)
 INSERT IGNORE INTO `users` (`id`,`username`,`usergroup`,`online`) VALUES (1,'guest','',1);
 
--- Seed: admin user — change password immediately after install
--- Default password: 'changeme' (bcrypt)
-INSERT IGNORE INTO `users` (`id`,`username`,`email`,`hpassword`,`usergroup`,`admin`,`access`,`settings`,`home`,`online`)
-VALUES (2,'admin','admin@example.com','$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi','admin','/admin/*','/',  'admin.php','/admin/info/',1);
+-- Admin user is created interactively by install/install.sh
 
 -- --------------------------------------------------------
 -- Brute-force login protection

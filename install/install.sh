@@ -94,7 +94,104 @@ read -rp "  Webmaster hostname (for dev error display, leave blank to skip): " W
 WEBMASTER="${WEBMASTER:-}"
 
 # -------------------------------------------------------
-# 7. Write config.php
+# 7. Create users
+# -------------------------------------------------------
+echo ""
+echo "--- Admin user ---"
+
+# Helper: read a non-empty value
+prompt_required() {
+    local val=""
+    while [ -z "$val" ]; do
+        read -rp "  $1: " val
+        [ -z "$val" ] && echo "  (required — cannot be empty)"
+    done
+    echo "$val"
+}
+
+# Helper: read a confirmed password (silent)
+prompt_password() {
+    local p1 p2
+    while true; do
+        read -rsp "  Password        : " p1; echo ""
+        [ ${#p1} -lt 8 ] && echo "  (minimum 8 characters)" && continue
+        read -rsp "  Confirm password: " p2; echo ""
+        [ "$p1" = "$p2" ] && break
+        echo "  (passwords do not match, try again)"
+    done
+    echo "$p1"
+}
+
+# Helper: bcrypt hash via PHP
+bcrypt() {
+    php -r "echo password_hash('$1', PASSWORD_BCRYPT);"
+}
+
+# Helper: insert one user row
+insert_user() {
+    local username="$1" email="$2" hash="$3" usergroup="$4" \
+          admin_col="$5" access_col="$6" settings_col="$7" home_col="$8"
+    mysql -h "$DB_HOST" -P "$DB_PORT" -u "$DB_USER" ${DB_PASS:+-p"$DB_PASS"} "$DB_NAME" <<SQL
+INSERT INTO users (username, email, password, hpassword, usergroup, admin, access, settings, home, online)
+VALUES (
+    '$(echo "$username" | sed "s/'/\\\\'/g")',
+    '$(echo "$email"    | sed "s/'/\\\\'/g")',
+    '*',
+    '$(echo "$hash"     | sed "s/'/\\\\'/g")',
+    '$usergroup',
+    '$admin_col',
+    '$access_col',
+    '$settings_col',
+    '$home_col',
+    1
+);
+SQL
+    echo "[OK] User '$username' ($usergroup) created."
+}
+
+# --- First admin user (required) ---
+ADMIN_USER=$(prompt_required "Username")
+ADMIN_PASS=$(prompt_password)
+ADMIN_HASH=$(bcrypt "$ADMIN_PASS")
+insert_user "$ADMIN_USER" "$ADMIN_EMAIL" "$ADMIN_HASH" "admin" "/admin/*" "/" "admin.php" "/admin/info/"
+
+# --- Optional extra users ---
+echo ""
+while true; do
+    read -rp "  Add another user? [y/N]: " ADD_MORE
+    case "$ADD_MORE" in
+        [yY]*)
+            echo ""
+            echo "  Usergroups: admin, editor, manage, members"
+            EXTRA_USER=$(prompt_required "  Username")
+            read -rp "  Email           : " EXTRA_EMAIL
+            EXTRA_EMAIL="${EXTRA_EMAIL:-}"
+            read -rp "  Usergroup       [members]: " EXTRA_GROUP
+            EXTRA_GROUP="${EXTRA_GROUP:-members}"
+            EXTRA_PASS=$(prompt_password)
+            EXTRA_HASH=$(bcrypt "$EXTRA_PASS")
+
+            # Set sensible defaults per usergroup
+            case "$EXTRA_GROUP" in
+                admin)
+                    insert_user "$EXTRA_USER" "$EXTRA_EMAIL" "$EXTRA_HASH" "admin" "/admin/*" "/" "admin.php" "/admin/info/"
+                    ;;
+                editor|manage)
+                    insert_user "$EXTRA_USER" "$EXTRA_EMAIL" "$EXTRA_HASH" "$EXTRA_GROUP" "/admin/*" "/" "admin.php" "/admin/info/"
+                    ;;
+                *)
+                    insert_user "$EXTRA_USER" "$EXTRA_EMAIL" "$EXTRA_HASH" "members" "" "/" "guests.php" "/"
+                    ;;
+            esac
+            ;;
+        *)
+            break
+            ;;
+    esac
+done
+
+# -------------------------------------------------------
+# 8. Write config.php
 # -------------------------------------------------------
 echo ""
 echo "Writing share/settings/config.php..."
@@ -145,7 +242,7 @@ PHP
 echo "[OK] config.php written."
 
 # -------------------------------------------------------
-# 8. File permissions
+# 9. File permissions
 # -------------------------------------------------------
 echo ""
 echo "--- File permissions ---"
@@ -181,14 +278,13 @@ echo "[OK] share/log/  — 770, owned by $WEB_USER"
 echo "[OK] config.php  — 640"
 
 # -------------------------------------------------------
-# 9. Done
+# 10. Done
 # -------------------------------------------------------
 echo ""
 echo "================================================="
 echo "  Installation complete!"
 echo ""
 echo "  Browse to: http://$DOMAIN/admin/"
-echo "  Login:     admin / changeme"
-echo "  >>> Change the admin password immediately <<<"
+echo "  Login with the admin account you just created."
 echo "================================================="
 echo ""
